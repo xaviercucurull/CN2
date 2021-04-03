@@ -15,7 +15,7 @@ class CN2():
     The star is then trimmed by removing lowest ranking elements
     Specialization: intersect set of possible selectors with current star -> eliminate null and unchanged elements
     """
-    def __init__(self, max_star_size=5, min_significance=0.7, verbose=0):      # TODO: how does star size affect? - check various values also for min_significance
+    def __init__(self, max_star_size=5, min_significance=0.7, verbose=0):      # TODO: does max_star_size affect fit performance/quality of rules?
         self.max_star_size = max_star_size
         self.min_significance = min_significance
         self.E = None
@@ -58,12 +58,13 @@ class CN2():
             # calculate entropy and significance for each complex
             for cpx in new_star:                
                 # find covered examples
-                covered_ids = self._find_covered_examples(cpx)
+                covered_ids = self._find_covered_examples(cpx, self.E)
                 
                 # calculate class probability distrubitions only if the complex covers examples
-                if True in covered_ids:
-                    # print('covered_ids {}'.format(covered_ids))   # TODO REMOVE
+                if len(covered_ids):
                     # TODO: where to calculate rule coverage?
+                    # TODO: coverage: covered_examples with class==cpx_class / total_class
+                    # TODO: precision: covered_prob_dist
                     covered_prob_dist = self.E['class'].loc[covered_ids].value_counts(sort=False, normalize=True)
                     covered_classes = covered_prob_dist.keys()
                     try:
@@ -107,14 +108,12 @@ class CN2():
             
             star = new_star_df.complex.to_list()
 
-            # TODO remove - just test / verbose
+            # print information about each complex of the new_star
             if self.verbose:
                 print('Len star:{}'.format(len(new_star)))
                 for i in range(len(new_star_df)):
                     print('{} -> {} (sig: {:.3f} - ent: {:.3f})'.format(new_star_df.iloc[i, 0], new_star_df.iloc[i, 3], new_star_df.iloc[i, 2], new_star_df.iloc[i, 1]))
                 print('---------------------------------------')
-        
-        print(best_cpx_class_perc)
             
         return best_cpx, best_cpx_covered_ids, best_cpx_most_common_class
     
@@ -140,7 +139,7 @@ class CN2():
         
         return new_star
 
-    def _find_covered_examples(self, cpx):
+    def _find_covered_examples(self, cpx, df, hasclass=True):
         """ Find all examples covered by a complex and returned
         their corresponding indices.
 
@@ -151,10 +150,14 @@ class CN2():
             list: list of indices of the examples covered
         """
         # https://stackoverflow.com/a/34162576
-        # find indices where dataframe matches filter dict       
-        covered_ids = np.array((self.E.iloc[:, :-1][list(cpx)] == pd.Series(cpx)).all(axis=1))
+        # find indices where dataframe matches filter dict
+        if hasclass:       
+            covered_ids = df.loc[(df.iloc[:, :-1][list(cpx)] == pd.Series(cpx)).all(axis=1)]
+        else:
+            covered_ids = df.loc[(df[list(cpx)] == pd.Series(cpx)).all(axis=1)]
         
-        return np.array(covered_ids)
+        print('covered_ids: {}'.format(covered_ids.index))
+        return covered_ids.index
     
     def _remove_covered_examples(self, covered_examples_ids):
         """[summary]
@@ -162,8 +165,7 @@ class CN2():
         Args:
             covered_examples_ids ([type]): [description]
         """
-        self.E.drop(np.where(covered_examples_ids)[0], inplace=True)
-        self.E.reset_index(drop=True, inplace=True)
+        self.E.drop(covered_examples_ids, inplace=True)
         
     def fit(self, X, y):
         """ Fit training data and compute CN2 induction rules
@@ -172,45 +174,79 @@ class CN2():
             x (DataFrame): training data features
             y (DataFrame): training data predictions
         """
-        self.E = X
+        self.E = X.copy()
         self.E['class'] = y
-        self.E.reset_index(drop=True, inplace=True)     # start index from 0
         
         self.selectors = []             # list of all possible selectors
         self._init_selectors()
         
-        # get global most common class, used by default rule
-        # TODO
-        
         # some class statistics, used later to calculate rule coverage
-        # TODO
+        # TODO rule coverage: number examples of given class covered by a given rule (subset of covered examples with class==cpx_class)
+        class_counts = y.value_counts()
+        
+        # get global most common class, used by default rule
+        default_class = class_counts.keys()[0]
         
         self.rules_list = []
             
         # loop until all examples are covered
         while len(self.E):
+            # print examples not covered yet
             if self.verbose:
                 print('Examples to cover:\n {}\n\nCandidate complexes:\n'.format(self.E))
-                         
+
+            # find best complex
             best_cpx, best_cpx_covered_ids, best_cpx_most_common_class = self._find_best_complex()
             
             # if best_complex not null
             if best_cpx is not None:
                 # remove best_cpx_covered_ids from self.E
                 self._remove_covered_examples(best_cpx_covered_ids)
-                # add complex, class to rules list
-                # TODO (add rule in the form of 'IF best_cpx THEN THE CLASS IS best_cpx_common_class') -> this cam be done in a print rules function
+                
+                # add (complex, class) to rules list
                 self.rules_list.append((best_cpx, best_cpx_most_common_class))
                 
+                # print obtained rule
                 if self.verbose:
                     print('Chosen rule:\nIF {} THEN {}\n'.format(best_cpx, best_cpx_most_common_class))
         
+        # add default rule
+        self.rules_list.append((None, default_class))
+        
     def predict(self, X):
-        y = None
-        # TODO: use complex from rule and use as filter
+        x = X.copy()
+        y = []
+        assert len(self.rules_list), 'CN2 rules not induced, call self.fit(x, y) first!'
+        
+        for i in range(len(self.rules_list) - 1):
+            cpx = self.rules_list[i][0]
+            prediction = self.rules_list[i][1]
+            
+            # TODO: use complex from rule and use as filter
+            covered_ids = self._find_covered_examples(x, hasclass=False)
+            
+
+        
         return y
 
-
+    def print_rules(self):
+        for i in range(len(self.rules_list) - 1):
+            cpx = self.rules_list[i][0]
+            prediction = self.rules_list[i][1]
+            
+            if len(cpx) == 1:
+                print('IF {} IS {} THEN CLASS IS {}'.format(list(cpx.keys())[0], list(cpx.values())[0], prediction))
+            else:
+                conditions = ''
+                for f, v in cpx.items():
+                    conditions += ' {} IS {} AND'.format(f, v)
+                conditions = conditions[:-4]    # remove final AND
+                
+                print('IF{} THEN CLASS IS {}'.format(conditions, prediction))
+            
+        # print default rule
+        print('DEFAULT CLASS IS {}'.format(self.rules_list[-1][1]))
+        
 # TODO: move to another file. Example/test/whatever
 from datasets import datasets
 
@@ -220,3 +256,4 @@ x, y = datasets.load_lenses()
 cn2 = CN2(verbose=1)
 
 cn2.fit(x, y)
+cn2.print_rules()
