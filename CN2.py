@@ -4,16 +4,20 @@ import numpy as np
 
 
 class CN2():
-    """[summary]
-    - Selector: a basic test on an attribute
-    - Complex: conjuction of selectors
+    """ Implementation of the CN2 (Clark and Niblett 1989) Induction Algorithm.
     
-    if <complex> then predict C
+    Obtain a set of ordered prediction rules from a set of examples.
+    Rules are of the form:  IF <complex> THEN predict Class
+
+    Definitions:
+        - Selector: a basic test on an attribute
+        - Complex: conjuction of selectors
+        - Star: group of complexes
     
-    At each stage in the search, CN2 retains a size-limited set or star S of 'best complexes found so far'
-    A complex is specialized by adding a conjuctive term or removing a disjunctive element in one of its selectors
-    The star is then trimmed by removing lowest ranking elements
-    Specialization: intersect set of possible selectors with current star -> eliminate null and unchanged elements
+    Example:
+        >>> cn2 = CN2()
+        >>> cn2.fit(x_train, y_train)
+        >>> y_pred = cn2.predict(x_test)
     """
     def __init__(self, max_star_size=5, min_significance=0.7, verbose=0):      # TODO: does max_star_size affect fit performance/quality of rules?
         self.max_star_size = max_star_size
@@ -29,14 +33,17 @@ class CN2():
         
         # treat each column (except the last one - class) as features
         for feature in self.E.columns[:-1]:
-            for value in x[feature].unique():
+            for value in self.E[feature].unique():
                 self.selectors.append({feature: value})
                 
     def _find_best_complex(self):
-        """[summary]
+        """ Find the best complex by iteratively specializing a star and calculating
+        the quality of its complexes.
+        
+        At each stage in the search, CN2 retains a size-limited star of 'best complexes found so far'.
 
         Returns:
-            [type]: [description]
+            list: containing best_cpx (list of dicts), best_cpx_covered_ids (list) and best_cpx_most_common_class (string)
         """
         star = []
         fist_run = True
@@ -118,6 +125,14 @@ class CN2():
         return best_cpx, best_cpx_covered_ids, best_cpx_most_common_class
     
     def _specialize_star(self, star):
+        """ Specialize a star by adding new conjuctive terms to its complexes.
+
+        Args:
+            star (list): list of complexes
+
+        Returns:
+            list: new specialized star
+        """
         # specialize the star (subset of best complexes found so far) by adding new conjuctive terms
         new_star = []
         if len(star):
@@ -130,9 +145,6 @@ class CN2():
                         new_cpx[sel_attribtute] = selector[sel_attribtute]
                         if new_cpx not in new_star:     # avoid repeating a complex (different order, but same meaning)
                             new_star.append(new_cpx)  
-            
-            #new_star = []   # REMOVE, JUST TO TEST
-
         else:
             # initialize star with all selectors as complexes
             new_star = [selector for selector in self.selectors]
@@ -145,6 +157,8 @@ class CN2():
 
         Args:
             cpx (dictionary): complex used as filter of the form {'attribute': value}
+            df (DataFrame): set of examples
+            hasclass (boolean): specifies if the last column of the given df is the class 
 
         Returns:
             list: list of indices of the examples covered
@@ -156,23 +170,14 @@ class CN2():
         else:
             covered_ids = df.loc[(df[list(cpx)] == pd.Series(cpx)).all(axis=1)]
         
-        print('covered_ids: {}'.format(covered_ids.index))
         return covered_ids.index
-    
-    def _remove_covered_examples(self, covered_examples_ids):
-        """[summary]
-
-        Args:
-            covered_examples_ids ([type]): [description]
-        """
-        self.E.drop(covered_examples_ids, inplace=True)
         
     def fit(self, X, y):
-        """ Fit training data and compute CN2 induction rules
-
+        """ Fit training data and compute CN2 induction rules.
+            
         Args:
             x (DataFrame): training data features
-            y (DataFrame): training data predictions
+            y (array-like): training data predictions
         """
         self.E = X.copy()
         self.E['class'] = y
@@ -182,7 +187,7 @@ class CN2():
         
         # some class statistics, used later to calculate rule coverage
         # TODO rule coverage: number examples of given class covered by a given rule (subset of covered examples with class==cpx_class)
-        class_counts = y.value_counts()
+        class_counts = pd.Series(y).value_counts()
         
         # get global most common class, used by default rule
         default_class = class_counts.keys()[0]
@@ -201,7 +206,7 @@ class CN2():
             # if best_complex not null
             if best_cpx is not None:
                 # remove best_cpx_covered_ids from self.E
-                self._remove_covered_examples(best_cpx_covered_ids)
+                self.E.drop(best_cpx_covered_ids, inplace=True)
                 
                 # add (complex, class) to rules list
                 self.rules_list.append((best_cpx, best_cpx_most_common_class))
@@ -214,22 +219,37 @@ class CN2():
         self.rules_list.append((None, default_class))
         
     def predict(self, X):
+        """ Use the obtained induction rules to make a prediciton on the given data.
+
+        Args:
+            X (DataFrame): test data features with the same header used during training (fit)
+            
+        Returns:
+            array-like: list of predictions
+        """
         x = X.copy()
-        y = []
+        y = pd.Series([None]*len(x))
+        
         assert len(self.rules_list), 'CN2 rules not induced, call self.fit(x, y) first!'
         
         for i in range(len(self.rules_list) - 1):
             cpx = self.rules_list[i][0]
             prediction = self.rules_list[i][1]
             
-            # TODO: use complex from rule and use as filter
-            covered_ids = self._find_covered_examples(x, hasclass=False)
+            # use complex from rule and use as filter
+            covered_ids = self._find_covered_examples(cpx, x, hasclass=False)
             
+            # update prediction Series with prediction of current rule
+            y.loc[covered_ids] = prediction            
+            
+            # remove covered examples from x DataFrame
+            x.drop(covered_ids, inplace=True)
 
-        
-        return y
+        return np.array(y)
 
     def print_rules(self):
+        """[summary]
+        """
         for i in range(len(self.rules_list) - 1):
             cpx = self.rules_list[i][0]
             prediction = self.rules_list[i][1]
@@ -246,14 +266,3 @@ class CN2():
             
         # print default rule
         print('DEFAULT CLASS IS {}'.format(self.rules_list[-1][1]))
-        
-# TODO: move to another file. Example/test/whatever
-from datasets import datasets
-
-#x, y = datasets.load_tennis()
-x, y = datasets.load_lenses()
-
-cn2 = CN2(verbose=1)
-
-cn2.fit(x, y)
-cn2.print_rules()

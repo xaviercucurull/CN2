@@ -49,6 +49,7 @@ def load_lenses(print_summary=False):
     # Load DATA dataset as pandas table
     lenses_header = ['age', 'deficiency', 'astigmatic', 'tear production', 'recommendation']
     df = pd.read_table('datasets/lenses.data', delimiter='\s+', index_col=0, names=lenses_header)
+    df.reset_index(inplace=True)    # start index at 0
     df.dataframeName = 'Lenses'
     
     # Replace attributes
