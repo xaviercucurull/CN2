@@ -43,7 +43,8 @@ class CN2():
         At each stage in the search, CN2 retains a size-limited star of 'best complexes found so far'.
 
         Returns:
-            list: containing best_cpx (list of dicts), best_cpx_covered_ids (list) and best_cpx_most_common_class (string)
+            list: containing best_cpx (list of dicts), best_cpx_covered_ids (list), 
+                  best_cpx_most_common_class (string) and best_cpx_precision (float)
         """
         star = []
         fist_run = True
@@ -80,10 +81,10 @@ class CN2():
                         most_common_class = 'ERROR'
                         print('ERROR - covered ex: {}'.format(covered_ids))
                     cpx_classes.append(most_common_class)
-                    covered_prob_dist = np.array(covered_prob_dist)
                     class_prob_dist = np.array(self.E['class'].loc[self.E['class'].isin(covered_classes)].value_counts(sort=False, normalize=True))     # global prob dist of covered classes
 
                     # calculate complex entropy
+                    covered_prob_dist = np.array(covered_prob_dist)
                     cpx_ent = entropy(covered_prob_dist)
                         
                     # calculate complex significance as (1 - likelihood ratio statistic)
@@ -100,7 +101,7 @@ class CN2():
                         best_cpx = cpx
                         best_cpx_covered_ids = covered_ids
                         best_cpx_most_common_class = most_common_class
-                        best_cpx_class_perc = covered_prob_dist
+                        best_cpx_precision = np.sort(covered_prob_dist)[::-1][0]
                 else:
                     cpx_entropies.append(99)
                     cpx_significances.append(0)
@@ -122,7 +123,7 @@ class CN2():
                     print('{} -> {} (sig: {:.3f} - ent: {:.3f})'.format(new_star_df.iloc[i, 0], new_star_df.iloc[i, 3], new_star_df.iloc[i, 2], new_star_df.iloc[i, 1]))
                 print('---------------------------------------')
             
-        return best_cpx, best_cpx_covered_ids, best_cpx_most_common_class
+        return best_cpx, best_cpx_covered_ids, best_cpx_most_common_class, best_cpx_precision
     
     def _specialize_star(self, star):
         """ Specialize a star by adding new conjuctive terms to its complexes.
@@ -187,10 +188,10 @@ class CN2():
         
         # some class statistics, used later to calculate rule coverage
         # TODO rule coverage: number examples of given class covered by a given rule (subset of covered examples with class==cpx_class)
-        class_counts = pd.Series(y).value_counts()
+        total_class_counts = pd.Series(y).value_counts()
         
         # get global most common class, used by default rule
-        default_class = class_counts.keys()[0]
+        default_class = total_class_counts.keys()[0]
         
         self.rules_list = []
             
@@ -201,19 +202,23 @@ class CN2():
                 print('Examples to cover:\n {}\n\nCandidate complexes:\n'.format(self.E))
 
             # find best complex
-            best_cpx, best_cpx_covered_ids, best_cpx_most_common_class = self._find_best_complex()
+            best_cpx, best_cpx_covered_ids, best_cpx_most_common_class, best_cpx_precision = self._find_best_complex()
             
             # if best_complex not null
             if best_cpx is not None:
+                # calculate rule coverage
+                best_cpx_coverage = self.E['class'].loc[best_cpx_covered_ids].value_counts()[0] / total_class_counts[best_cpx_most_common_class]
+                
                 # remove best_cpx_covered_ids from self.E
                 self.E.drop(best_cpx_covered_ids, inplace=True)
-                
-                # add (complex, class) to rules list
-                self.rules_list.append((best_cpx, best_cpx_most_common_class))
+
+                # add (complex, class, coverage, precision) to rules list
+                self.rules_list.append((best_cpx, best_cpx_most_common_class, best_cpx_coverage, best_cpx_precision))
                 
                 # print obtained rule
                 if self.verbose:
-                    print('Chosen rule:\nIF {} THEN {}\n'.format(best_cpx, best_cpx_most_common_class))
+                    print('Chosen rule:\nIF {} THEN {}  [{:.2f} {:.2f}]\n'.format(best_cpx, best_cpx_most_common_class, 
+                                                                                  best_cpx_coverage, best_cpx_precision))
         
         # add default rule
         self.rules_list.append((None, default_class))
