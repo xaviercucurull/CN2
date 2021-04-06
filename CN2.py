@@ -23,6 +23,7 @@ class CN2():
         self.max_star_size = max_star_size
         self.min_significance = min_significance
         self.E = None
+        self.bins = {}
         self.verbose = verbose
     
     def _init_selectors(self):
@@ -173,17 +174,30 @@ class CN2():
         
         return covered_ids.index
         
-    def fit(self, X, y):
+    def fit(self, X, y, n_bins=4):
         """ Fit training data and compute CN2 induction rules.
             
         Args:
             x (DataFrame): training data features
             y (array-like): training data predictions
+            n_bins (int, optional): number of bins used for discretization of continuous attributes. Defaults to 4.
         """
         self.E = X.copy()
-        self.E['class'] = y
         
-        self.selectors = []             # list of all possible selectors
+        # Discretize continuous attributes
+        for c in self.E.columns:
+            if 'int' in str(self.E[c].dtype):
+                precision = 0
+                self.E[c], self.bins[c] = pd.qcut(self.E[c], n_bins, precision=precision, retbins=True)
+                
+                
+            elif 'float' in str(self.E[c].dtype):
+                precision = 2
+                self.E[c], self.bins[c] = pd.qcut(self.E[c], n_bins, precision=precision, retbins=True)
+
+        self.E['class'] = y     # add class columns to examples DataFrame
+
+        self.selectors = []     # list of all possible selectors
         self._init_selectors()
         
         # some class statistics, used later to calculate rule coverage
@@ -235,8 +249,14 @@ class CN2():
         x = X.copy()
         y = pd.Series([None]*len(x))
         
+        # discretize attributes using saved bins
+        for c in x.columns:
+            if c in self.bins.keys():
+                x[c] = pd.cut(x[c], self.bins[c])
+
         assert len(self.rules_list), 'CN2 rules not induced, call self.fit(x, y) first!'
         
+        # apply all rules in order
         for i in range(len(self.rules_list) - 1):
             cpx = self.rules_list[i][0]
             prediction = self.rules_list[i][1]
@@ -250,6 +270,9 @@ class CN2():
             # remove covered examples from x DataFrame
             x.drop(covered_ids, inplace=True)
 
+        # apply default rule to examples not classified
+        y.loc[x.index] = self.rules_list[-1][1]
+        
         return np.array(y)
 
     def print_rules(self):

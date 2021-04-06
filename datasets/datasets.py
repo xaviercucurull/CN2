@@ -120,7 +120,7 @@ def load_lenses(print_summary=False):
     
     return df, df_class
 
-def load_mammographic_mass(age_bins=4, print_summary=False):
+def load_mammographic_mass(print_summary=False):
     """ Load mammographic mass dataset
     https://archive.ics.uci.edu/ml/datasets/Mammographic+Mass
     
@@ -133,7 +133,6 @@ def load_mammographic_mass(age_bins=4, print_summary=False):
     6. Severity: benign=0 or malignant=1 (binominal, goal field!)
     
     Args:
-        age_bins (int, optional): number of bins used to discretize the age attribute. Defaults to 4.
         print_summary (bool, optional): Print a summary of the dataset. Defaults to False.
         
     Returns:
@@ -159,9 +158,7 @@ def load_mammographic_mass(age_bins=4, print_summary=False):
     for k in replace_dicts.keys():
         df[k].replace(replace_dicts[k], inplace=True)
 
-    # Discretize age
     df['age'] = df['age'].astype(np.int16)       # convert str to int
-    df['age'] = pd.qcut(df['age'], age_bins, precision=0)
     
     class_col = 'severity'
     
