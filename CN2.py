@@ -174,27 +174,34 @@ class CN2():
         
         return covered_ids.index
         
-    def fit(self, X, y, n_bins=4):
+    def fit(self, X, y, n_bins=4, fixed_bin_size=False):
         """ Fit training data and compute CN2 induction rules.
             
         Args:
             x (DataFrame): training data features
-            y (array-like): training data predictions
+            y (array-like): training data classification
             n_bins (int, optional): number of bins used for discretization of continuous attributes. Defaults to 4.
+            fixed_bin_size (boolean, optional): use a fixed size bin when discretizing. 
+                                                True uses pandas.cut, False uses pandas.qcut Defaults to False.
         """
         self.E = X.copy()
         
         # Discretize continuous attributes
         for c in self.E.columns:
-            if 'int' in str(self.E[c].dtype):
-                precision = 0
-                self.E[c], self.bins[c] = pd.qcut(self.E[c], n_bins, precision=precision, retbins=True)
-                
-                
-            elif 'float' in str(self.E[c].dtype):
-                precision = 2
-                self.E[c], self.bins[c] = pd.qcut(self.E[c], n_bins, precision=precision, retbins=True)
+            if len(self.E[c].value_counts()) > n_bins:
+                if 'int' in str(self.E[c].dtype):
+                    precision = 0
+                    if fixed_bin_size:
+                        self.E[c], self.bins[c] = pd.cut(self.E[c], n_bins, precision=precision, retbins=True, duplicates='drop')
+                    else:
+                        self.E[c], self.bins[c] = pd.qcut(self.E[c], n_bins, precision=precision, retbins=True, duplicates='drop')
 
+                elif 'float' in str(self.E[c].dtype):
+                    precision = 2
+                    if fixed_bin_size:
+                        self.E[c], self.bins[c] = pd.cut(self.E[c], n_bins, precision=precision, retbins=True, duplicates='drop')
+                    else:
+                        self.E[c], self.bins[c] = pd.qcut(self.E[c], n_bins, precision=precision, retbins=True, duplicates='drop')
         self.E['class'] = y     # add class columns to examples DataFrame
 
         self.selectors = []     # list of all possible selectors
@@ -221,8 +228,8 @@ class CN2():
             # if best_complex not null
             if best_cpx is not None:
                 # calculate rule coverage
-                best_cpx_coverage = self.E['class'].loc[best_cpx_covered_ids].value_counts()[0] / total_class_counts[best_cpx_most_common_class]
-                
+                best_cpx_coverage = self.E['class'].loc[best_cpx_covered_ids].value_counts().iloc[0] / total_class_counts[best_cpx_most_common_class]
+                                
                 # remove best_cpx_covered_ids from self.E
                 self.E.drop(best_cpx_covered_ids, inplace=True)
 
