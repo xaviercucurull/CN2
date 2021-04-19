@@ -1,0 +1,30 @@
+IF density IS high AND age IS (46.0, 57.0] THEN CLASS IS malignant
+IF density IS fat-containing AND age IS (57.0, 66.0] THEN CLASS IS benign
+IF shape IS lobular AND margin IS spiculated THEN CLASS IS malignant
+IF shape IS lobular AND density IS fat-containing THEN CLASS IS benign
+IF density IS high AND shape IS oval THEN CLASS IS benign
+IF density IS high AND margin IS ill-defined THEN CLASS IS malignant
+IF density IS high AND shape IS irregular THEN CLASS IS benign
+IF margin IS obscured AND shape IS round THEN CLASS IS benign
+IF age IS (46.0, 57.0] AND margin IS ill-defined AND density IS fat-containing THEN CLASS IS malignant
+IF density IS fat-containing AND shape IS round THEN CLASS IS benign
+IF age IS (46.0, 57.0] AND density IS fat-containing THEN CLASS IS malignant
+IF density IS fat-containing AND margin IS ill-defined THEN CLASS IS malignant
+IF density IS fat-containing THEN CLASS IS benign
+IF shape IS lobular AND margin IS ill-defined AND density IS iso AND age IS (66.0, 96.0] THEN CLASS IS malignant
+IF shape IS lobular AND density IS iso THEN CLASS IS benign
+IF age IS (57.0, 66.0] THEN CLASS IS malignant
+IF age IS (66.0, 96.0] THEN CLASS IS malignant
+IF shape IS irregular AND margin IS circumscribed THEN CLASS IS benign
+IF shape IS irregular AND margin IS microlobulated THEN CLASS IS malignant
+IF margin IS spiculated AND shape IS oval THEN CLASS IS benign
+IF shape IS irregular AND age IS (46.0, 57.0] AND density IS iso THEN CLASS IS malignant
+IF margin IS spiculated AND age IS (17.0, 46.0] AND shape IS round THEN CLASS IS benign
+IF margin IS spiculated AND shape IS round THEN CLASS IS malignant
+IF margin IS spiculated AND density IS iso THEN CLASS IS malignant
+IF shape IS irregular AND density IS iso AND margin IS obscured THEN CLASS IS malignant
+IF density IS low THEN CLASS IS benign
+IF age IS (46.0, 57.0] THEN CLASS IS benign
+IF shape IS oval THEN CLASS IS benign
+IF age IS (17.0, 46.0] THEN CLASS IS benign
+DEFAULT CLASS IS benign

@@ -1,0 +1,9 @@
+,Rules,Coverage,Precision
+0,IF tear production IS reduced THEN CLASS IS none,80.00,100.00
+1,IF age IS young AND astigmatic IS no THEN CLASS IS soft,40.00,100.00
+2,IF age IS young THEN CLASS IS hard,50.00,100.00
+3,IF deficiency IS hypermetrope THEN CLASS IS soft,40.00,50.00
+4,IF astigmatic IS yes THEN CLASS IS hard,50.00,100.00
+5,IF age IS pre-presbyopic THEN CLASS IS soft,20.00,100.00
+6,IF age IS presbyopic THEN CLASS IS none,6.67,100.00
+7,DEFAULT CLASS IS none,0.00,0.00

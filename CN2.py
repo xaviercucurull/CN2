@@ -1,3 +1,9 @@
+"""
+CN2 Induction Algorithm
+Author: Xavier Cucurull Salamero <xavier.cucurull@estudiantat.upc.edu>
+
+"""
+
 import pandas as pd
 from scipy.stats import entropy
 import numpy as np
@@ -19,7 +25,7 @@ class CN2():
         >>> cn2.fit(x_train, y_train)
         >>> y_pred = cn2.predict(x_test)
     """
-    def __init__(self, max_star_size=5, min_significance=0.7, verbose=0):      # TODO: does max_star_size affect fit performance/quality of rules?
+    def __init__(self, max_star_size=5, min_significance=0.7, verbose=0):
         self.max_star_size = max_star_size
         self.min_significance = min_significance
         self.E = None
@@ -50,12 +56,15 @@ class CN2():
         star = []
         fist_run = True
         best_cpx = None
+        best_cpx_covered_ids = []
+        best_cpx_most_common_class = None
+        best_cpx_precision = 0
         best_entropy = 99
         best_significance = 0
         
         # while star is not empty and significance is above min
         # but don't keep iterating if a complex with significance 1 and entropy 0 is found
-        while len(star) and best_significance < 1 and best_significance > self.min_significance and best_entropy > 0 or fist_run:
+        while len(star) and best_significance < 1 and best_significance >= self.min_significance and best_entropy > 0 or fist_run:
             fist_run = False
             cpx_significances = []
             cpx_entropies = []
@@ -71,9 +80,6 @@ class CN2():
                 
                 # calculate class probability distrubitions only if the complex covers examples
                 if len(covered_ids):
-                    # TODO: where to calculate rule coverage?
-                    # TODO: coverage: covered_examples with class==cpx_class / total_class
-                    # TODO: precision: covered_prob_dist
                     covered_prob_dist = self.E['class'].loc[covered_ids].value_counts(sort=False, normalize=True)
                     covered_classes = covered_prob_dist.keys()
                     try:
@@ -144,7 +150,7 @@ class CN2():
                     sel_attribtute = list(selector)[0]
                     if sel_attribtute not in cpx.keys():  # if attribute not in complex (avoid null)
                         new_cpx = cpx.copy()
-                        new_cpx[sel_attribtute] = selector[sel_attribtute]
+                        new_cpx[sel_attribtute] = selector[sel_attribtute]  # add new selector to complex
                         if new_cpx not in new_star:     # avoid repeating a complex (different order, but same meaning)
                             new_star.append(new_cpx)  
         else:
@@ -173,7 +179,7 @@ class CN2():
             covered_ids = df.loc[(df[list(cpx)] == pd.Series(cpx)).all(axis=1)]
         
         return covered_ids.index
-        
+    
     def fit(self, X, y, n_bins=4, fixed_bin_size=False):
         """ Fit training data and compute CN2 induction rules.
             
@@ -208,7 +214,6 @@ class CN2():
         self._init_selectors()
         
         # some class statistics, used later to calculate rule coverage
-        # TODO rule coverage: number examples of given class covered by a given rule (subset of covered examples with class==cpx_class)
         total_class_counts = pd.Series(y).value_counts()
         
         # get global most common class, used by default rule
@@ -242,7 +247,7 @@ class CN2():
                                                                                   best_cpx_coverage, best_cpx_precision))
         
         # add default rule
-        self.rules_list.append((None, default_class))
+        self.rules_list.append((None, default_class, 0, 0))
         
     def predict(self, X):
         """ Use the obtained induction rules to make a prediciton on the given data.
@@ -281,23 +286,71 @@ class CN2():
         y.loc[x.index] = self.rules_list[-1][1]
         
         return np.array(y)
-
-    def print_rules(self):
-        """[summary]
+    
+    def _generate_interpretable_rules(self):
+        """ Generate a list of rules in an interpretable way.
+        Rules are generated in the form of: IF <complex> THEN CLASS IS <class>
+        
+        This method is used by print_rules and generate_rules_table.
+        
+        Returns:
+            list: a list of strings containing the interpretable rules
         """
+        interpretable_rules = []
+
         for i in range(len(self.rules_list) - 1):
             cpx = self.rules_list[i][0]
             prediction = self.rules_list[i][1]
-            
             if len(cpx) == 1:
-                print('IF {} IS {} THEN CLASS IS {}'.format(list(cpx.keys())[0], list(cpx.values())[0], prediction))
+                rule_str = 'IF {} IS {} THEN CLASS IS {}'.format(list(cpx.keys())[0], list(cpx.values())[0], prediction)
             else:
                 conditions = ''
                 for f, v in cpx.items():
                     conditions += ' {} IS {} AND'.format(f, v)
                 conditions = conditions[:-4]    # remove final AND
                 
-                print('IF{} THEN CLASS IS {}'.format(conditions, prediction))
-            
-        # print default rule
-        print('DEFAULT CLASS IS {}'.format(self.rules_list[-1][1]))
+                rule_str = 'IF{} THEN CLASS IS {}'.format(conditions, prediction)
+                
+            # add interpretable rule to list
+            interpretable_rules.append(rule_str)
+
+        # add default rule
+        interpretable_rules.append('DEFAULT CLASS IS {}'.format(self.rules_list[-1][1]))
+        
+        return interpretable_rules
+    
+    def print_rules(self):
+        """ Print all rules in an interpretable way.
+        Rules are printed in the form of: IF <complex> THEN CLASS IS <class>
+        """
+        interpretable_rules = self._generate_interpretable_rules()
+        for r in interpretable_rules:
+            print(r)
+
+    def save_rules(self, filename):
+        """ Save the generated rules into a text file in an interpretable way
+
+        Args:
+            filename (str): full filename of the file where to write the rules
+        """
+        with open(filename, 'w') as f:
+            interpretable_rules = self._generate_interpretable_rules()
+            f.write('\n'.join(interpretable_rules) + '\n')
+
+    def generate_rules_table(self):
+        """ Generate a table containing the interpretable rules and their corresponding coverage and precision.
+        
+        The generated pandas DataFrame can then be saved to LaTeX.
+
+        Returns:
+            DataFrame: table containing rules, coverage and precision
+        """
+        interpretable_rules = self._generate_interpretable_rules()
+        rules_coverage = ['{:.2f}'.format(i[2]*100) for i in self.rules_list]
+        rules_precision = ['{:.2f}'.format(i[3]*100) for i in self.rules_list]
+        
+        rules_table = pd.DataFrame({'Rules': interpretable_rules, 'Coverage': rules_coverage, 
+                                    'Precision': rules_precision})
+
+        return rules_table
+        

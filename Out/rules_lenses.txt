@@ -1,0 +1,8 @@
+IF tear production IS reduced THEN CLASS IS none
+IF age IS young AND astigmatic IS no THEN CLASS IS soft
+IF age IS young THEN CLASS IS hard
+IF deficiency IS hypermetrope THEN CLASS IS soft
+IF astigmatic IS yes THEN CLASS IS hard
+IF age IS pre-presbyopic THEN CLASS IS soft
+IF age IS presbyopic THEN CLASS IS none
+DEFAULT CLASS IS none

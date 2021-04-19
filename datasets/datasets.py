@@ -1,6 +1,9 @@
 import os
 import pandas as pd
 import numpy as np
+from scipy.io import arff
+
+DATASETS_PATH = os.path.join('datasets', 'DATA')
 
 def load_csv(filepath, delimiter=',', class_col='', dataset_name='', print_summary=False):
     """[summary]
@@ -49,7 +52,7 @@ def load_tennis(print_summary=False):
         tuple: containing a DataFrame of examples features and a Series of classes
     """
     # Load CSV dataset as pandas table
-    df = pd.read_csv('datasets/play_tennis.csv', delimiter=',')
+    df = pd.read_csv(os.path.join(DATASETS_PATH, 'play_tennis.csv'), delimiter=',')
     df.dataframeName = 'Play Tennis'
     
     # Remove day column (not a feature)
@@ -92,7 +95,7 @@ def load_lenses(print_summary=False):
     """
     # Load DATA dataset as pandas table
     lenses_header = ['age', 'deficiency', 'astigmatic', 'tear production', 'recommendation']
-    df = pd.read_table('datasets/lenses.data', delimiter='\s+', index_col=0, names=lenses_header)
+    df = pd.read_table(os.path.join(DATASETS_PATH, 'lenses.data'), delimiter='\s+', index_col=0, names=lenses_header)
     df.reset_index(drop=True, inplace=True)    # start index at 0
     df.dataframeName = 'Lenses'
     
@@ -140,7 +143,7 @@ def load_mammographic_mass(print_summary=False):
     """
     # Load DATA dataset as pandas table
     header = ['bi-rads', 'age', 'shape', 'margin', 'density', 'severity']
-    df = pd.read_table('datasets/mammographic_masses.data', index_col=False, delimiter=',', names=header)
+    df = pd.read_table(os.path.join(DATASETS_PATH, 'mammographic_masses.data'), index_col=False, delimiter=',', names=header)
     df.drop('bi-rads', 1, inplace=True)     # remove non-predictive column
     df.dataframeName = 'Mammographic Mass'
 
@@ -176,3 +179,120 @@ def load_mammographic_mass(print_summary=False):
     
     return df, df_class
 
+def load_contraceptive(print_summary=False):
+    """ Load contraceptive method choice dataset
+        https://archive.ics.uci.edu/ml/datasets/Contraceptive+Method+Choice   
+         
+    Attribute Information:
+    1. Wife's age (numerical)
+    2. Wife's education (categorical) 1=low, 2, 3, 4=high
+    3. Husband's education (categorical) 1=low, 2, 3, 4=high
+    4. Number of children ever born (numerical)
+    5. Wife's religion (binary) 0=Non-Islam, 1=Islam
+    6. Wife's now working? (binary) 0=Yes, 1=No
+    7. Husband's occupation (categorical) 1, 2, 3, 4
+    8. Standard-of-living index (categorical) 1=low, 2, 3, 4=high
+    9. Media exposure (binary) 0=Good, 1=Not good
+    10. Contraceptive method used (class attribute) 1=No-use, 2=Long-term, 3=Short-term
+    
+    Args:
+        print_summary (bool, optional): Print a summary of the dataset. Defaults to False.
+        
+    Returns:
+        tuple: containing a DataFrame of examples features and a Series of classes
+    """
+    # Load DATA dataset as pandas table
+    header = ['wife age', 'wife education', 'husband education', 'number children', 'wife religion', 'wife working',
+              'husband occupation', 'SLI', 'media exposure', 'contraceptive method']
+    df = pd.read_table(os.path.join(DATASETS_PATH, 'cmc.data'), index_col=False, delimiter=',', names=header)
+    df.dataframeName = 'Contraceptive Method Choice'
+    
+    # Replace attributes
+    replace_dicts = {'wife education': {1: 'low', 2: 'medium-low', 3:'medium-high', 4:'high'},
+                     'husband education': {1: 'low', 2: 'medium-low', 3:'medium-high', 4:'high'},
+                     'wife religion': {0: 'non-islam', 1: 'islam'},
+                     'wife working': {0: 'yes', 1: 'no'},
+                     'media exposure': {0: 'good', 1: 'not good'},
+                     'SLI': {1: 'low', 2: 'medium-low', 3:'medium-high', 4:'high'},
+                     'contraceptive method': {1: 'no-use', 2: 'long-term', 3:'short-term'}}
+    
+    for k in replace_dicts.keys():
+        df[k].replace(replace_dicts[k], inplace=True)
+
+    df['husband occupation'] = df['husband occupation'].astype(str)     # convert int to str (categorical attribute)
+    
+    class_col = 'contraceptive method'
+    
+    # Dataset summary
+    if print_summary:
+        for c in df.columns:
+            if c!=class_col:
+                print(df.groupby([c, class_col]).size())
+                print('------------------')
+        df[class_col].value_counts()
+        
+    # Separate data and class
+    df_class = df[class_col]
+    df.drop(class_col, 1, inplace=True)
+    
+    return df, df_class
+
+def load_adult(print_summary=False):
+    """ Load Adult dataset
+        https://archive.ics.uci.edu/ml/datasets/Adult     
+    
+    Args:
+        print_summary (bool, optional): Print a summary of the dataset. Defaults to False.
+        
+    Returns:
+        tuple: containing a DataFrame of examples features and a Series of classes
+    """
+    # Load DATA dataset as pandas table
+    header = ['age', 'workclass', 'fnlwgt', 'education', 'education-num', 'marital-status', 'occupation','relationship',
+              'race', 'sex', 'capital-gain', 'capital-loss', 'hours-per-week', 'native-country', 'salary']
+    df = pd.read_table(os.path.join(DATASETS_PATH, 'adult.data'), index_col=False, delimiter=',', names=header)
+    df.dataframeName = 'Adult'
+    
+    # Remove examples with missing values
+    df.replace({'?':np.nan}, inplace=True)
+    df.dropna(inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    
+    # Convert numercial attributes to int 
+    df['age'] = df['age'].astype(np.int16)
+    df['fnlwgt'] = df['fnlwgt'].astype(np.int32)
+    df['education-num'] = df['education-num'].astype(np.int16)
+    df['capital-gain'] = df['capital-gain'].astype(np.int32)
+    df['capital-loss'] = df['capital-loss'].astype(np.int32)
+    df['hours-per-week'] = df['hours-per-week'].astype(np.int16)
+
+    class_col = 'salary'
+    
+    # Dataset summary
+    if print_summary:
+        for c in df.columns:
+            if c!=class_col:
+                print(df.groupby([c, class_col]).size())
+                print('------------------')
+        df[class_col].value_counts()
+        
+    # Separate data and class
+    df_class = df[class_col]
+    df.drop(class_col, 1, inplace=True)
+    
+    return df, df_class
+
+def load_rice():
+    data, meta = arff.loadarff(os.path.join(DATASETS_PATH, 'Rice_Osmancik_Cammeo_Dataset.arff'))
+    df = pd.DataFrame(data)
+    
+    class_col = 'CLASS'
+    
+    # Decode class values
+    df[class_col] = df[class_col].str.decode("utf-8")
+    
+    # Separate data and class
+    df_class = df[class_col]
+    df.drop(class_col, 1, inplace=True)
+    
+    return df, df_class
